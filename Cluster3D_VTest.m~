@@ -1,0 +1,140 @@
+clear all; clc;
+
+for versao = 1:3
+
+
+load('SNmat.mat');
+
+%teste sem T1
+%dividir by maximum, make -values = 0.
+SWIphase(SWIphase<0) = 0;
+
+% img1_2d = (SWI(:,:,:));
+% img2_2d = (SWIphase(:,:,:));
+img1_2d = (T1_SN(:,:,:));
+img2_2d = (T2_SN(:,:,:));
+img3_2d = (Fl_SN(:,:,:));
+
+% max_img1_2d = max(max(max((SWI(:,:,:)))));
+% max_img2_2d = max(max(max(((SWIphase(:,:,:))))));
+max_img1_2d = max(max(max(((T1_SN(:,:,:))))));
+max_img2_2d = max(max(max(((T2_SN(:,:,:))))));
+max_img3_2d = max(max(max(((Fl_SN(:,:,:))))));
+
+img1_2d = img1_2d/max_img1_2d;
+img2_2d = img2_2d/max_img2_2d;
+img3_2d = img3_2d/max_img3_2d;
+% img4_2d = img4_2d/max_img4_2d;
+% img5_2d = img5_2d/max_img5_2d;
+
+
+% changing NaN values to 0
+img1_2d(isnan(img1_2d))=0;
+img2_2d(isnan(img2_2d))=0;
+img3_2d(isnan(img3_2d))=0;
+% img4_2d(isnan(img4_2d))=0;
+% img5_2d(isnan(img5_2d))=0;
+
+%defining numberLines and numberColumns
+[numberLines,numberColumns,numberAltitude] = size(img1_2d);
+
+%Unifying everything.
+for i=1:numberLines
+    for j = 1:numberColumns
+        for k =1:numberAltitude
+        img_resul(i,j,k).c1 = img1_2d(i,j,k);
+        img_resul(i,j,k).c2 = img2_2d(i,j,k);
+        img_resul(i,j,k).c3 = img3_2d(i,j,k);
+%         img_resul(i,j,k).c4 = img4_2d(i,j,k);
+%         img_resul(i,j,k).c5 = img5_2d(i,j,k); 
+        img_resul(i,j,k).family = -1;
+        end
+    end
+end
+
+
+%------------------------------------------------------
+%Implementation of the Algorithm: Clustering
+%------------------------------------------------------
+
+%Clustering
+
+contador = 0 ; %era 0 antes
+limitCorrelation = 0.8;
+vecCorrelationsContrasts = [];
+listOfFamilies = {{}};
+
+h = waitbar(0,['Loading']);
+totalOp = numberLines*numberColumns*numberAltitude;
+
+%randomizing the starting point - family
+i_tot = [1:numberLines];
+j_tot =[1:numberColumns];
+k_tot = [1:numberAltitude];
+
+firstI = i_tot(randi(numel(i_tot)));
+firstJ = j_tot(randi(numel(j_tot)));
+firstK = j_tot(randi(numel(k_tot)));
+
+
+
+listOfFamilies{1}{1} = [img_resul(firstI,firstJ,firstK).c1,img_resul(firstI,firstJ,firstK).c2,img_resul(firstI,firstJ,firstK).c3]';
+img_resul(firstI,firstJ,firstK).family = 1;
+
+%end test
+
+for k = 9:9
+   for i=1:numberLines
+      for j = 1:numberColumns
+        
+        
+        contador = contador + 1;
+        waitbar(contador/totalOp);
+        vecCorrelationsContrasts = [];
+        vecCorrelationsFamilies = [];
+            
+        vec_central = [img_resul(i,j,k).c1,img_resul(i,j,k).c2,img_resul(i,j,k).c3]';    
+        
+        %percorre o vetor que contem cada familia
+          for index_family = 1:numel(listOfFamilies)
+               %para cada familia, percorre os vetores contrastes 
+
+                    for corr = 1:((numel(listOfFamilies{index_family})))
+                        
+                        correlation = corrcoef(vec_central,listOfFamilies{index_family}{corr});
+                        vecCorrelationsContrasts = [vecCorrelationsContrasts correlation(2,1)];
+                    
+                    end
+
+           
+                
+               vecCorrelationsFamilies(index_family) = mean(vecCorrelationsContrasts);
+               vecCorrelationsContrasts = [];           
+          end
+          
+          if(max(vecCorrelationsFamilies)>= limitCorrelation)       
+            [val idx1] = max(vecCorrelationsFamilies);
+            img_resul(i,j,k).family =  idx1;
+            numberElements = numel(listOfFamilies{idx1});
+            listOfFamilies{idx1}{numberElements+1} = vec_central;
+%             listOfFamiliesPositions{idx1}{numberElements+1} = [i,j];
+          else
+            numberFamilies= numel(listOfFamilies);
+            listOfFamilies{numberFamilies+1}{1} = vec_central;
+%             listOfFamiliesPositions{numberFamilies+1}{1} = [i,j];
+            img_resul(i,j,k).family =  numberFamilies + 1;
+          end       
+          
+        end  
+           
+   end
+end
+
+name = strcat('Resul',num2str(versao));
+save(name,'img_resul');
+
+end
+
+
+
+
